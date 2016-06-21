@@ -3,10 +3,15 @@
 #include <iostream>
 #include <cstdio>
 #include <cstdlib>
+#include <cfloat>
 #include <random>
+#include <vector>
 
 using namespace std;
 
+/***************************************
+ * Definition of Vertex, Node and Graph
+ ***************************************/
 // Vertex class
 class Vertex {
 public:
@@ -45,6 +50,7 @@ void Vertex::print() const
 
 // Node class
 class Node : public Vertex {
+    //friend void init_nodes(const Graph &g, int row_num, int column_num);
 public:
     Node() { }
     Node(double x, double y) : Vertex(x, y) { }
@@ -52,9 +58,19 @@ public:
     static void set_speed(double s);
     static double get_fov();
     static void set_fov(double d);
+    int get_start() const;
+    void set_start(int s);
+    int get_end() const;
+    void set_end(int d);
+    int get_dist2start() const;
+    void set_dist2start(int d);
+
 private:
     static double speed; //Moving speed
     static double fov; //Field of view
+    int start; //Vertex ID moving from
+    int end; //Vertex ID moving to
+    int dist2start; // Distance from the start vertex
 };
 double Node::get_speed()
 {
@@ -72,9 +88,30 @@ void Node::set_fov(double d)
 {
     fov = d;
 }
-
-double Node::speed = 2;
-double Node::fov = 10;
+int Node::get_start() const
+{
+    return start;
+}
+void Node::set_start(int s)
+{
+    start = s;
+}
+int Node::get_end() const
+{
+    return end;
+}
+void Node::set_end(int d)
+{
+    end = d;
+}
+int Node::get_dist2start() const
+{
+    return dist2start;
+}
+void Node::set_dist2start(int d)
+{
+    dist2start = d;
+}
 
 //Graph Scenario
 const int MAX_VERTEX_NUM = 50;
@@ -83,6 +120,8 @@ class Graph {
     friend void init_arcs(Graph &g, int row_num, int column_num);
     friend void init_arcs_length(Graph &g);
     friend void init_arcs_probs(Graph &g);
+    //friend void init_nodes(Graph &g, int row_num, int column_num);
+    
 public:
     Graph() { }
     Vertex get_vertex(int index) const;
@@ -242,6 +281,8 @@ void init_arcs_length(Graph &g)
     for (int i = 0; i < g.vertex_num; ++i) {
         for (int j = 0; j < g.vertex_num; ++j) {
             if (!is_arc(g, i, j)) {
+                //g.arcs_length[i][j] = DBL_MAX;
+                //g.arcs_length[j][i] = DBL_MAX;
                 continue;
             }
             double dist = distance_vertexes(g.vertexes[i], g.vertexes[j]);
@@ -330,6 +371,122 @@ void Graph::init_graph(int v_num, int a_num)
 
 
 }
-Node target;
-const int END = 100; //Experiment time
+
+void shortest_path_dijkstra(const Graph &g, int start,\
+    vector<int> *shortest_path, vector<int> &nodes_selected,\
+    double threshold)
+/* Calculate shortest paths from vertex start */
+{
+    double distances[MAX_VERTEX_NUM]; //Temporary shortest distances set
+    vector<int> paths[MAX_VERTEX_NUM]; //Temporary shortest paths set
+    /* Initialization */
+    for (int i = 0; i < g.get_vertex_num(); ++i) {
+        if (0 == g.get_arcs(start, i)) {
+            distances[i] = DBL_MAX;
+        } else {
+            distances[i] = g.get_arcs_length(start, i);
+        }
+        //from[i] = start;
+        paths[i].push_back(start);
+    }
+    int is_gotten[MAX_VERTEX_NUM]; //Flags: if vertex is finished
+    memset(is_gotten, 0, sizeof(is_gotten));
+    is_gotten[start] = 1;
+    /* Solving */
+    for (int i = 1; i < g.get_vertex_num(); ++i) {
+        double dist_min = DBL_MAX;
+        int index_min = -1;
+        for (int j = 0; j < g.get_vertex_num(); ++j) {
+            if (is_gotten[j]) {
+                continue;
+            }
+            if (distances[j] < dist_min) {
+                dist_min = distances[j];
+                index_min = j;
+            }
+        }
+        if (-1 == index_min || dist_min > threshold) {
+            break;
+        }
+        is_gotten[index_min] = 1;
+        nodes_selected.push_back(index_min);
+        paths[index_min].push_back(index_min);
+        for (int j = 0; j < g.get_vertex_num(); ++j) {
+            if (is_gotten[j] || !g.get_arcs(index_min, j)) {
+                continue;
+            }
+            if (dist_min + g.get_arcs_length(index_min, j) < distances[j]) {
+                distances[j] = dist_min + g.get_arcs_length(index_min, j);
+                paths[j].assign(paths[index_min].begin(),\
+                                paths[index_min].end());
+            }
+        }
+    }
+    for (vector<int>::iterator it = nodes_selected.begin();\
+         it != nodes_selected.end(); ++it) {
+        shortest_path[*it].assign(paths[*it].begin(), paths[*it].end());
+    }
+}
+
+/***************************************
+ * Settings of Scenario
+ ***************************************/
+int END = 100; //Experiment time
+int Mobile_Node_Num = 5; //Number of nodes
+int Target_Num = 1; //Number of target
+double Node::speed = 2; //Speed of target and nodes
+double Node::fov = 10; //Node's distance of field of view
+
+/***************************************
+ * Deployment of Target and Nodes
+ ***************************************/
+Node Nodes[MAX_VERTEX_NUM]; //Set of Nodes;
+void init_nodes(const Graph &g, int row_num, int column_num)
+/* Deploy nodes */
+{
+    random_device rd;
+    mt19937 gen(rd());
+    uniform_int_distribution<> row_random(0, row_num - 1);
+    uniform_int_distribution<> column_random(0, column_num - 1);
+    int is_set[MAX_VERTEX_NUM][MAX_VERTEX_NUM];
+    memset(is_set, 0, sizeof(is_set));
+    int row;
+    int column = column_random(gen);
+    for (int i = 0; i < Mobile_Node_Num; ++i) {
+        do {
+            row = row_random(gen);
+            column = (column + 1) % column_num; //Columns in turn, to make even
+        } while(is_set[row][column]);
+        is_set[row][column] = 1;
+        int index = row * column_num + column;
+        Nodes[i].set_start(index);
+        Nodes[i].set_end(index);
+        Nodes[i].set_dist2start(0);
+    }
+    //test
+    for (int i = 0; i < row_num; ++i) {
+        for (int j = 0; j < column_num; ++j) {
+            if (is_set[i][j]) {
+                printf(" 1");
+            } else {
+                printf(" 0");
+            }
+        }
+        fputc('\n', stdout);
+    }
+}
+Node Target;
+void init_target()
+/* Deploy the target: choose the same location with one of those nodes */
+{
+    random_device rd;
+    mt19937 gen(rd());
+    uniform_int_distribution<> node_random(0, Mobile_Node_Num - 1);
+    int node = node_random(gen);
+    int index = Nodes[node].get_start();
+    Target.set_start(index);
+    Target.set_end(index);
+    Target.set_dist2start(0);
+    printf("target start = %d\n", Target.get_start());
+}
 #endif

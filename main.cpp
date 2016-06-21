@@ -21,6 +21,11 @@ void test()
     memset(a, 0, sizeof(a));
     printf("sizeof(a) = %d\n", sizeof(a));
     printf("a[1][2] = %d\n", a[1][2]);
+    //printf("DBL_MAX = %f\n", DBL_MAX);
+    int row_num = 4;
+    int column_num = 5;
+    init_nodes(museum, row_num, column_num);
+    init_target();
 }
 
 int main(int argc, char *argv[])
