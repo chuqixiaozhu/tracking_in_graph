@@ -6,6 +6,7 @@
 #include <cfloat>
 #include <random>
 #include <vector>
+#include <algorithm>
 
 using namespace std;
 
@@ -373,7 +374,7 @@ void Graph::init_graph(int v_num, int a_num)
 }
 
 void shortest_path_dijkstra(const Graph &g, int start,\
-    vector<int> *shortest_path, vector<int> &nodes_selected,\
+    vector<int> *shortest_paths, vector<int> &vertexes_selected,\
     double threshold)
 /* Calculate shortest paths from vertex start */
 {
@@ -409,7 +410,7 @@ void shortest_path_dijkstra(const Graph &g, int start,\
             break;
         }
         is_gotten[index_min] = 1;
-        nodes_selected.push_back(index_min);
+        vertexes_selected.push_back(index_min);
         paths[index_min].push_back(index_min);
         for (int j = 0; j < g.get_vertex_num(); ++j) {
             if (is_gotten[j] || !g.get_arcs(index_min, j)) {
@@ -422,17 +423,83 @@ void shortest_path_dijkstra(const Graph &g, int start,\
             }
         }
     }
-    for (vector<int>::iterator it = nodes_selected.begin();\
-         it != nodes_selected.end(); ++it) {
-        shortest_path[*it].assign(paths[*it].begin(), paths[*it].end());
+    for (vector<int>::iterator it = vertexes_selected.begin();\
+         it != vertexes_selected.end(); ++it) {
+        shortest_paths[*it].assign(paths[*it].begin(), paths[*it].end());
     }
+
+    //test
+    printf("Dijkstra:\nStart: %d\n", start);
+    printf("Vertexes selected:");
+    sort(vertexes_selected.begin(), vertexes_selected.end());
+    for (vector<int>::iterator it = vertexes_selected.begin();\
+         it != vertexes_selected.end();
+         ++it) {
+        printf(" %d", *it);
+    }
+    fputc('\n', stdout);
+    for (int i = 0; i < g.get_vertex_num(); ++i) {
+        printf("distances[%i] = %f\n", i, distances[i]);
+        printf("Shortest path:");
+        for (vector<int>::iterator it = shortest_paths[i].begin();\
+             it != shortest_paths[i].end(); ++it) {
+            printf(" %d", *it);
+        }
+        fputc('\n', stdout);
+    }
+
+}
+
+/***************************************
+ * Definition of Expectation of movement saving
+ ***************************************/
+//Expectation of moving distance saving
+class Saving_Expect {
+public:
+    Saving_Expect() { }
+    Saving_Expect(double v, int m) : value(v), if_move(m) { }
+    Saving_Expect(double v, int m, int t) : value(v), if_move(m), to(t) { }
+    double get_value() const;
+    void set_value(double v);
+    int get_if_move() const;
+    void set_if_move(int m);
+    int get_to() const;
+    void set_to(int t);
+private:
+    double value;
+    int if_move;
+    int to;
+};
+double Saving_Expect::get_value() const
+{
+    return value;
+}
+void Saving_Expect::set_value(double v)
+{
+    value = v;
+}
+int Saving_Expect::get_if_move() const
+{
+    return if_move;
+}
+void Saving_Expect::set_if_move(int m)
+{
+    if_move = m;
+}
+int Saving_Expect::get_to() const
+{
+    return to;
+}
+void Saving_Expect::set_to(int t)
+{
+    to = t;
 }
 
 /***************************************
  * Settings of Scenario
  ***************************************/
 int END = 100; //Experiment time
-int Mobile_Node_Num = 5; //Number of nodes
+int Mobile_Node_Num = 6; //Number of nodes
 int Target_Num = 1; //Number of target
 double Node::speed = 2; //Speed of target and nodes
 double Node::fov = 10; //Node's distance of field of view
@@ -440,8 +507,8 @@ double Node::fov = 10; //Node's distance of field of view
 /***************************************
  * Deployment of Target and Nodes
  ***************************************/
-Node Nodes[MAX_VERTEX_NUM]; //Set of Nodes;
-void init_nodes(const Graph &g, int row_num, int column_num)
+//Node Nodes[MAX_VERTEX_NUM]; //Set of Nodes;
+void init_nodes(Node *Nodes, const Graph &g, int row_num, int column_num)
 /* Deploy nodes */
 {
     random_device rd;
@@ -475,18 +542,69 @@ void init_nodes(const Graph &g, int row_num, int column_num)
         fputc('\n', stdout);
     }
 }
-Node Target;
-void init_target()
+//Node Target; // The Target
+void init_target(Node &Target, const Node *nodes)
 /* Deploy the target: choose the same location with one of those nodes */
 {
     random_device rd;
     mt19937 gen(rd());
     uniform_int_distribution<> node_random(0, Mobile_Node_Num - 1);
     int node = node_random(gen);
-    int index = Nodes[node].get_start();
+    int index = nodes[node].get_start();
     Target.set_start(index);
     Target.set_end(index);
     Target.set_dist2start(0);
     printf("target start = %d\n", Target.get_start());
+}
+
+/***************************************
+ * Processing
+ ***************************************/
+int is_path_captured(const Node *nodes, const vector<int> &path) 
+/* If the path is enclosed by nodes */
+{
+    for (vector<int>::const_iterator p_i = path.begin() + 1;\
+         p_i != path.end(); ++p_i) {
+        for (int i = 0; i < Mobile_Node_Num; ++i) {
+            if (*p_i == nodes[i].get_start()) {
+                return 1;
+            }
+        }
+    }
+    return 0;
+}
+int is_target_enclosed(const Node *nodes, const vector<int> *shortest_paths,\
+                const vector<int> &vertexes_selected)
+/* If the target is enclosed by nodes */
+{
+    int enclosed_count = 0;
+    for (vector<int>::const_iterator vs_i = vertexes_selected.begin();\
+         vs_i != vertexes_selected.end(); ++vs_i) {
+        enclosed_count += is_path_captured(nodes, shortest_paths[*vs_i]);
+        //test
+        printf("Vertex path (%d): %d\n",\
+            *vs_i, is_path_captured(nodes, shortest_paths[*vs_i]));
+    }
+    if (enclosed_count == vertexes_selected.size()) {
+        printf("YES! Enclosed!\n"); //test
+        return 1;
+    } else {
+        printf("NO! Not enclosed!\n"); //test
+        return 0;
+    }
+}
+
+void get_path_expect(vector<double> &expects_set, const Node *nodes,\
+    const Graph &g, const vector<int> &path)
+{
+
+}
+
+void get_all_expects(vector<double> &expects_set, const Node *nodes,\
+    const Graph &g, const vector<int> *shortest_paths,\
+    const vector<int> &vertexes_selected)
+/* Calculate all Expectations */    
+{
+
 }
 #endif

@@ -24,8 +24,18 @@ void test()
     //printf("DBL_MAX = %f\n", DBL_MAX);
     int row_num = 4;
     int column_num = 5;
-    init_nodes(museum, row_num, column_num);
-    init_target();
+    Node nodes[MAX_VERTEX_NUM]; //Set of Nodes;
+    init_nodes(nodes, museum, row_num, column_num);
+    Node target; // The Target
+    init_target(target, nodes);
+    vector<int> shortest_paths[MAX_VERTEX_NUM];
+    vector<int> vertexes_selected;
+    double threshold = 100;
+    int start  = 0;
+    shortest_path_dijkstra(museum, start,\
+        shortest_paths, vertexes_selected,\
+        threshold);
+    is_target_enclosed(nodes, shortest_paths, vertexes_selected);
 }
 
 int main(int argc, char *argv[])
