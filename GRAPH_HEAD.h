@@ -203,10 +203,14 @@ void init_vertexes(Graph &g, int row_num, int column_num)
 {
     random_device rd;
     mt19937 gen(rd());
-    int row_start = 18; //Coordinate start of vertex rows
-    int row_end = 22; //Coordinate end of vertex rows
-    int column_start = 8; //Coordinate start of vertex columns
-    int column_end = 12; //Coordinate end of vertex columns
+    //int row_start = 18; //Coordinate start of vertex rows
+    //int row_end = 22; //Coordinate end of vertex rows
+    //int column_start = 8; //Coordinate start of vertex columns
+    //int column_end = 12; //Coordinate end of vertex columns
+    int row_start = 14; //Coordinate start of vertex rows
+    int row_end = 26; //Coordinate end of vertex rows
+    int column_start = 4; //Coordinate start of vertex columns
+    int column_end = 16; //Coordinate end of vertex columns
     double inc = 2 * Node::get_fov(); // Increase of coordinate 
 
     for (int i = 0; i < row_num; ++i) {
@@ -375,10 +379,10 @@ void Graph::init_graph(int v_num, int a_num)
 
 void shortest_path_dijkstra(const Graph &g, int start,\
     vector<int> *shortest_paths, vector<int> &vertexes_selected,\
-    double threshold)
+    double *distances, double threshold)
 /* Calculate shortest paths from vertex start */
 {
-    double distances[MAX_VERTEX_NUM]; //Temporary shortest distances set
+    //double distances[MAX_VERTEX_NUM]; //Temporary shortest distances set
     vector<int> paths[MAX_VERTEX_NUM]; //Temporary shortest paths set
     /* Initialization */
     for (int i = 0; i < g.get_vertex_num(); ++i) {
@@ -458,12 +462,12 @@ class Expect_Saving {
 public:
     Expect_Saving() { }
     Expect_Saving(double v, int n, int m) : \
-        value(v), node(n), if_move(m) { }
+        value(v), node(n), if_move(m), to(-1) { }
     Expect_Saving(double v, int n, int m, int t) : \
         value(v), node(n), if_move(m), to(t) { }
     double get_value() const;
     void set_value(double v);
-    double get_node() const;
+    int get_node() const;
     void set_node(int n);
     int get_if_move() const;
     void set_if_move(int m);
@@ -483,7 +487,7 @@ void Expect_Saving::set_value(double v)
 {
     value = v;
 }
-double Expect_Saving::get_node() const
+int Expect_Saving::get_node() const
 {
     return node;
 }
@@ -512,7 +516,7 @@ void Expect_Saving::set_to(int t)
  * Settings of Scenario
  ***************************************/
 int END = 100; //Experiment time
-int Mobile_Node_Num = 6; //Number of nodes
+int Mobile_Node_Num = 15; //Number of nodes
 int Target_Num = 1; //Number of target
 double Node::speed = 2; //Speed of target and nodes
 double Node::fov = 10; //Node's distance of field of view
@@ -635,7 +639,7 @@ int is_on_arc(int v0, int v1, const Node &node)
 }
 
 void get_path_expect(vector<Expect_Saving> &expects_set, const Node *nodes,\
-    const Graph &g, const vector<int> &path, int tracking_id)
+    const Graph &g, const vector<int> &path, const double *distances, int tracking_id)
 /* Calculate expectations in the path */
 {
     double prob_start_v1 = 1;
@@ -649,32 +653,47 @@ void get_path_expect(vector<Expect_Saving> &expects_set, const Node *nodes,\
         printf("@643 (v0 - v1 - v2) = (%d - %d - %d)\n", v0, v1, v2); //test
         prob_start_v2 = prob_start_v1 * g.get_arcs_probs(v1, v2);
         //printf("@646 Mobile_Node_Num = %d\n", Mobile_Node_Num); //test
+        printf("prob_start_v1 = %f, prob_start_v2 = %f\n", prob_start_v1,\
+            prob_start_v2); //test
         for (int i = 0; i < Mobile_Node_Num; ++i) {
             if (!is_on_arc(v1, v2, nodes[i]) || tracking_id == i) {
                 continue;
             }
+            double dist_v0_v1 = \
+                get_dist_vertexes(g.get_vertex(v0), g.get_vertex(v1));
+            double dist_v1_m1 = \
+                get_dist_vertexes(g.get_vertex(v1), nodes[i]);
+            //if (dist_v1_m1 > distances[v1]) {
+            //    printf("Cannot arrive in time! dist_v1_m1 = %f distances[%d] = %f\n", dist_v1_m1, v1, distances[v1]); //test
+            //    continue;
+            //}
             //printf("@651\n"); //test
             if (-1 == v0) {
-                double dist_v1_m1 = \
-                    get_dist_vertexes(g.get_vertex(v1), nodes[i]);
+                /*double dist_v1_m1 = \
+                    get_dist_vertexes(g.get_vertex(v1), nodes[i]);*/
                 double dist_sav = \
                     (dist_v1_m1 < double_fov ? dist_v1_m1 : double_fov);
                 double exp = dist_sav * prob_start_v2;
                 //printf("@655 exp = %f\n", exp); //test
                 Expect_Saving expect_tmp(exp, i, 0);
                 expects_set.push_back(expect_tmp);
+                printf("******* v0 == -1 *******\n"); //test
+                printf("dist_v1_m1 = %f\n\
+                       prob_start_v2 = %f\n\
+                       dist_sav = %f\n\
+                       exp = %f\n", \
+                    dist_v1_m1, prob_start_v2, dist_sav, exp);
                 //nodes[i].set_start(v2);
                 //nodes[i].set_end(v1);
                 continue;
             }
             double dist_sav;
             double exp;
-            double dist_v0_v1 = \
-                get_dist_vertexes(g.get_vertex(v0), g.get_vertex(v1));
-            double dist_v1_m1 = \
-                get_dist_vertexes(g.get_vertex(v1), nodes[i]);
+ 
+            printf("******* Rock n Roll *******\n");
             printf("dist_v0_v1 = %f, dist_v1_m1 = %f\n", dist_v0_v1, dist_v1_m1); //test
             /* Not to move */
+            printf("***** Not to move:\n");
             if (dist_v0_v1 >= double_fov) {
                 dist_sav = \
                 ((is_on_vertex(v1, nodes[i]) || dist_v1_m1 >= double_fov) ? \
@@ -690,14 +709,24 @@ void get_path_expect(vector<Expect_Saving> &expects_set, const Node *nodes,\
             }
             if (is_on_vertex(v1, nodes[i])) {
                 exp = dist_sav * prob_start_v1;
+                printf("dist_sav = %f\n", dist_sav);
+                printf("prob_start_v1111 = %f\n", prob_start_v1);
+                printf("exp = %f\n", exp); //test
             } else {
                 exp = dist_sav * prob_start_v2;
+                printf("dist_sav = %f\n", dist_sav);
+                printf("prob_start_v2222 = %f\n", prob_start_v2);
+                printf("exp = %f\n", exp); //test
             }
             Expect_Saving expect_wait(exp, i, 0);
             expects_set.push_back(expect_wait);
-            printf("@687 exp = %f\n", exp); //test
 
             /* To move */
+            printf("***** To move:\n");
+            if (dist_v1_m1 > distances[v1]) {
+                printf("Cannot arrive in time! dist_v1_m1 = %f distances[%d] = %f\n", dist_v1_m1, v1, distances[v1]); //test
+                continue;
+            }
             if (dist_v0_v1 >= double_fov) {
                 dist_sav = (
                     dist_v0_v1 - Node::get_fov() >= dist_v1_m1 ?
@@ -712,7 +741,9 @@ void get_path_expect(vector<Expect_Saving> &expects_set, const Node *nodes,\
             exp = dist_sav * prob_start_v1;
             Expect_Saving expect_move(exp, i, 1, v1);
             expects_set.push_back(expect_move);
-            printf("@708 exp = %f, dist_sav = %f, prob_start_v1 = %f\n", exp, dist_sav, prob_start_v1); //test
+            printf("dist_sav = %f\n", dist_sav);
+            printf("prob_start_v1 = %f\n", prob_start_v1);
+            printf("exp = %f\n", exp); //test
         }
         //update prob_start_v1
         prob_start_v1 = prob_start_v2;
@@ -722,13 +753,36 @@ void get_path_expect(vector<Expect_Saving> &expects_set, const Node *nodes,\
 
 void get_all_expects(vector<Expect_Saving> &expects_set, const Node *nodes,\
     const Graph &g, const vector<int> *shortest_paths,\
-    const vector<int> &vertexes_selected, int tracking_id)
+    const vector<int> &vertexes_selected, const double *distances, int tracking_id)
 /* Calculate all Expectations */    
 {
     for (vector<int>::const_iterator v_i = vertexes_selected.begin();
          v_i != vertexes_selected.end(); ++v_i) {
         get_path_expect(expects_set, nodes, g, \
-            shortest_paths[*v_i], tracking_id);
+            shortest_paths[*v_i], distances, tracking_id);
     }
+    //test
+    int count = 0;
+    for (vector<Expect_Saving>::iterator e_i = expects_set.begin();
+        e_i != expects_set.end(); ++e_i) {
+        printf("%d: ", ++count);
+        printf("(value = %f, node = %d, if_move = %d, to = %d)\n",
+            e_i->get_value(), e_i->get_node(), e_i->get_if_move(), e_i->get_to());
+    }
+}
+
+class Prob_range {
+public:
+    
+private:
+    int to;
+    double lower;
+    double upper;
+};
+
+int get_target_next_step(const Node &target, const Graph &g)
+/* Get the next destination of the target */
+{
+    int target_i = target.get_start();
 }
 #endif

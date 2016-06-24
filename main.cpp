@@ -32,13 +32,14 @@ void test()
     vector<int> vertexes_selected;
     double threshold = 100;
     int start = nodes[tracking_id].get_start();
+    double distances[MAX_VERTEX_NUM];
     shortest_path_dijkstra(museum, start,\
         shortest_paths, vertexes_selected,\
-        threshold);
+        distances, threshold);
     is_target_enclosed(nodes, shortest_paths, vertexes_selected);
     vector<Expect_Saving> expects_set;
     get_all_expects(expects_set, nodes, museum, shortest_paths,\
-        vertexes_selected, tracking_id);
+        vertexes_selected, distances, tracking_id);
     //void get_all_expects(vector<Expect_Saving> &expects_set, const Node *nodes,\
     //    const Graph &g, const vector<int> *shortest_paths,\
     //    const vector<int> &vertexes_selected, int tracking_id)
