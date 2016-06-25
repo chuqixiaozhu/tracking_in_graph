@@ -463,8 +463,8 @@ public:
     Expect_Saving() { }
     Expect_Saving(double v, int n, int m) : \
         value(v), node(n), if_move(m), to(-1) { }
-    Expect_Saving(double v, int n, int m, int t) : \
-        value(v), node(n), if_move(m), to(t) { }
+    Expect_Saving(double v, int n, int m, int t, double d) : \
+        value(v), node(n), if_move(m), to(t), dist_saved(d) { }
     double get_value() const;
     void set_value(double v);
     int get_node() const;
@@ -473,11 +473,14 @@ public:
     void set_if_move(int m);
     int get_to() const;
     void set_to(int t);
+    double get_dist_saved() const;
+    void set_dist_saved(double d);
 private:
     double value; //Expectation value
     int node; //Which node
     int if_move; //Flag value: if the node move
     int to; //If the node move, which vertex it move to
+    double dist_saved; //Distance saved
 };
 double Expect_Saving::get_value() const
 {
@@ -511,6 +514,14 @@ void Expect_Saving::set_to(int t)
 {
     to = t;
 }
+double Expect_Saving::get_dist_saved() const
+{
+    return dist_saved;
+}
+void Expect_Saving::set_dist_saved(double d)
+{
+    dist_saved = d;
+}
 
 /***************************************
  * Settings of Scenario
@@ -520,6 +531,7 @@ int Mobile_Node_Num = 15; //Number of nodes
 int Target_Num = 1; //Number of target
 double Node::speed = 2; //Speed of target and nodes
 double Node::fov = 10; //Node's distance of field of view
+double Total_Distance_Saved = 0;
 
 /***************************************
  * Deployment of Target and Nodes
@@ -727,6 +739,9 @@ void get_path_expect(vector<Expect_Saving> &expects_set, const Node *nodes,\
                 printf("Cannot arrive in time! dist_v1_m1 = %f distances[%d] = %f\n", dist_v1_m1, v1, distances[v1]); //test
                 continue;
             }
+            if (is_on_vertex(v1, nodes[i])) {
+                continue;
+            }
             if (dist_v0_v1 >= double_fov) {
                 dist_sav = (
                     dist_v0_v1 - Node::get_fov() >= dist_v1_m1 ?
@@ -739,7 +754,7 @@ void get_path_expect(vector<Expect_Saving> &expects_set, const Node *nodes,\
                     dist_v0_v1 + Node::get_fov() - 2 * dist_v1_m1);
             }
             exp = dist_sav * prob_start_v1;
-            Expect_Saving expect_move(exp, i, 1, v1);
+            Expect_Saving expect_move(exp, i, 1, v1, exp);
             expects_set.push_back(expect_move);
             printf("dist_sav = %f\n", dist_sav);
             printf("prob_start_v1 = %f\n", prob_start_v1);
@@ -771,18 +786,212 @@ void get_all_expects(vector<Expect_Saving> &expects_set, const Node *nodes,\
     }
 }
 
+//For the target to choose path
 class Prob_range {
 public:
-    
+    Prob_range() { }
+    Prob_range(double p, int t) : prob(p), to(t) { }
+    Prob_range(double l, double p, double u, int t) : \
+        lower(l), prob(p), upper(u), to(t) { }
+    int get_to() const;
+    void set_to(int t);
+    double get_prob() const;
+    void set_prob(double l);
+    double get_lower() const;
+    void set_lower(double l);
+    double get_upper() const;
+    void set_upper(double u);
 private:
-    int to;
-    double lower;
-    double upper;
+    int to; // To which vertex
+    double prob; //Probability to the vertex
+    double lower; //Probability lower range
+    double upper; //Probability upper range
+
 };
+int Prob_range::get_to() const
+{
+    return to;
+}
+void Prob_range::set_to(int t)
+{
+    to = t;
+}
+double Prob_range::get_prob() const
+{
+    return prob;
+}
+void Prob_range::set_prob(double p)
+{
+    prob = p;
+}
+double Prob_range::get_lower() const
+{
+    return lower;
+}
+void Prob_range::set_lower(double l)
+{
+    lower = l;
+}
+double Prob_range::get_upper() const
+{
+    return upper;
+}
+void Prob_range::set_upper(double u)
+{
+    upper = u;
+}
+
+bool prob_comp(const Prob_range &a, const Prob_range &b)
+{
+    return a.get_prob() < b.get_prob();
+}
 
 int get_target_next_step(const Node &target, const Graph &g)
 /* Get the next destination of the target */
 {
-    int target_i = target.get_start();
+    int t_i = target.get_start();
+    vector<Prob_range> prob_set;
+    /* Get all "to" vertex */
+    for (int i = 0; i < g.get_vertex_num(); ++i) {
+        if (!g.get_arcs(t_i, i) || i == t_i) {
+            continue;
+        }
+        Prob_range prob_tmp(g.get_arcs_probs(t_i, i), i);
+        prob_set.push_back(prob_tmp);
+    }
+    sort(prob_set.begin(), prob_set.end(), prob_comp);
+    /* Set lower and upper */
+    double lower_range = 0;
+    for (vector<Prob_range>::iterator p_i = prob_set.begin();
+        p_i != prob_set.end(); ++p_i) {
+        p_i->set_lower(lower_range);
+        p_i->set_upper(lower_range + p_i->get_prob());
+        lower_range += p_i->get_prob();
+    }
+    //test
+    printf("from target (%d):\n", target.get_start());
+    for (vector<Prob_range>::iterator p_i = prob_set.begin();
+        p_i != prob_set.end(); ++p_i) {
+        printf("To vertex %d (%f): (%f, %f)\n",\
+            p_i->get_to(), p_i->get_prob(), p_i->get_lower(), p_i->get_upper());
+    }
+
+    /* Choose a destination */
+    random_device rd;
+    mt19937 gen(rd());
+    uniform_real_distribution<> prob_random(0, 1);
+    double roll = prob_random(gen);
+    int vertex_to = -1;
+    for (vector<Prob_range>::iterator p_i = prob_set.begin();
+        p_i != prob_set.end(); ++p_i) {
+        if (roll >= p_i->get_lower() && roll < p_i->get_upper()) {
+            vertex_to = p_i->get_to();
+        }
+    }
+    printf("roll = %f, vertex_to = %d\n", roll, vertex_to); //test
+    return vertex_to;
+}
+
+void set_coordinate_in_arc(double &x, double &y,\
+                           int from, int to, int dist2from, \
+                           const Graph &g)
+/* Set a node's coordinate in an arc */
+{
+    double delta_x = \
+        g.get_vertex(to).get_x_() - g.get_vertex(from).get_x_();
+    double delta_y = \
+        g.get_vertex(to).get_y_() - g.get_vertex(from).get_y_();
+    x = delta_x / g.get_arcs_length(from, to) * dist2from + \
+        g.get_vertex(from).get_x_();
+    y = delta_y / g.get_arcs_length(from, to) * dist2from + \
+        g.get_vertex(from).get_y_();
+    //wait for testing
+}
+
+void mobile_node_schedule(const vector<Expect_Saving> &expects_set, \
+                          Node *nodes, int target_from, int target_to,\
+                          const Graph &g, int &tracking_index)
+/* Schedule the mobile nodes according to expectations */
+{
+    double expect_max = 0;
+    int node_index;
+    int will_move = 0;
+    int dest;
+    double dist_saved;
+    /* Choose the maximum expectation */
+    for (vector<Expect_Saving>::const_iterator e_i = expects_set.begin();
+         e_i != expects_set.end(); ++e_i) {
+        if (e_i->get_value() > expect_max) {
+            expect_max = e_i->get_value();
+            node_index = e_i->get_node();
+            will_move = e_i->get_if_move();
+            dest = e_i->get_to();
+            dist_saved = e_i->get_dist_saved();
+        }
+    }
+    if (will_move) {
+        nodes[node_index].set_start(dest);
+        nodes[node_index].set_end(dest);
+        nodes[node_index].set_dist2start(0);
+        nodes[node_index].set_x_(g.get_vertex(dest).get_x_());
+        nodes[node_index].set_y_(g.get_vertex(dest).get_y_());
+    }
+    //if (expects)
+
+    /* Schedule the tracking node */
+    /* If move */
+    if (will_move) {
+        if (dest == target_to) {
+            Total_Distance_Saved += dist_saved; //Update total distance
+            double dist_v0_v1 = g.get_arcs_length(target_from, target_to);
+            double dist_v1_m1 = \
+                get_dist_vertexes(g.get_vertex(dest), nodes[node_index]);
+            double d0 = dist_v0_v1 - dist_saved - dist_v1_m1;
+            /* Update tracking node */
+            nodes[tracking_index].set_end(dest);
+            nodes[tracking_index].set_dist2start(d0);
+            double x, y;
+            set_coordinate_in_arc(x, y, target_from, target_to, d0, g);
+            nodes[tracking_index].set_x_(x);
+            nodes[tracking_index].set_y_(y);
+            tracking_index = node_index;
+            return;
+        }
+    }
+    /* If no move or move to other vertex */
+    for (int i = 0; i < Mobile_Node_Num; ++i) {
+        if (i == tracking_index) {
+            continue;
+        }
+        if (!is_on_arc(target_from, target_to, nodes[i])) {
+            continue;
+        }
+        //if (!is_on_vertex(target_to, nodes[i])) {
+
+        //}
+        double dist_v0_m1 = \
+            get_dist_vertexes(g.get_vertex(target_from), nodes[i]);
+        double double_fov = 2 * Node::get_fov();
+        //double d0 = \
+        //    (dist_v0_m1 > double_fov ? dist_v0_m1 - double_fov : 0);
+        double d0;
+        if (dist_v0_m1 > double_fov) {
+            d0 = dist_v0_m1 - double_fov;
+            Total_Distance_Saved += double_fov;
+        } else {
+            d0 = 0;
+            Total_Distance_Saved += dist_v0_m1;
+        }
+        if (d0) {
+            nodes[tracking_index].set_end(target_to);
+            nodes[tracking_index].set_dist2start(d0);
+            double x, y;
+            set_coordinate_in_arc(x, y, target_from, target_to, d0, g);
+            nodes[tracking_index].set_x_(x);
+            nodes[tracking_index].set_y_(y);
+        }
+        tracking_index = i;
+        break;
+    }
 }
 #endif

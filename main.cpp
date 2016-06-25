@@ -44,6 +44,8 @@ void test()
     //    const Graph &g, const vector<int> *shortest_paths,\
     //    const vector<int> &vertexes_selected, int tracking_id)
     cout << "expects_set.size = " << expects_set.size() << endl;
+    int next_vertex = get_target_next_step(target, museum);
+
 }
 
 int main(int argc, char *argv[])
