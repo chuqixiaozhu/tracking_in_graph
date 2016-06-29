@@ -463,27 +463,29 @@ void shortest_path_dijkstra(const Graph &g, int target_from, int start,\
 class Expect_Saving {
 public:
     Expect_Saving() { }
-    Expect_Saving(double v, int n, int m) : \
-        value(v), node(n), if_move(m), to(-1) { }
+    //Expect_Saving(double v, int n, int m) : \
+    //    value(v), node(n), if_move(m), to(-1) { }
     //Expect_Saving(double v, int n, int m, int t, double d) : \
     //    value(v), node(n), if_move(m), to(t), dist_saved(d) { }
-    Expect_Saving(double v, int n, int m, int t) : \
-        value(v), node(n), if_move(m), to(t) { }
+    //Expect_Saving(double v, int n, int m, int t) : \
+    //    value(v), node(n), if_move(m), to(t) { }
+    Expect_Saving(double v, int n, int m) : \
+        value(v), node(n), if_move(m) { }
     double get_value() const;
     void set_value(double v);
     int get_node() const;
     void set_node(int n);
     int get_if_move() const;
     void set_if_move(int m);
-    int get_to() const;
-    void set_to(int t);
+    //int get_to() const;
+    //void set_to(int t);
     //double get_dist_saved() const;
     //void set_dist_saved(double d);
 private:
     double value; //Expectation value
     int node; //Which node
     int if_move; //Flag value: if the node move
-    int to; //If the node move, which vertex it move to
+    //int to; //If the node move, which vertex it move to
     //double dist_saved; //Distance saved
 };
 double Expect_Saving::get_value() const
@@ -510,14 +512,14 @@ void Expect_Saving::set_if_move(int m)
 {
     if_move = m;
 }
-int Expect_Saving::get_to() const
-{
-    return to;
-}
-void Expect_Saving::set_to(int t)
-{
-    to = t;
-}
+//int Expect_Saving::get_to() const
+//{
+//    return to;
+//}
+//void Expect_Saving::set_to(int t)
+//{
+//    to = t;
+//}
 //double Expect_Saving::get_dist_saved() const
 //{
 //    return dist_saved;
@@ -532,12 +534,12 @@ void Expect_Saving::set_to(int t)
  ***************************************/
 //int END = 100; //Experiment time
 int Mobile_Node_Num = 5; //Number of nodes
-double Search_Threshold = 100; //Distance threshold of shortest paths
+//double Search_Threshold = 100; //Distance threshold of shortest paths
 double Target_Moving_Dist_Threshold = 2000; //Distance of target moving
 int Target_Num = 1; //Number of target
 double Node::speed = 2; //Speed of target and nodes
 double Node::fov = 10; //Node's distance of field of view
-double Total_Distance_Saved = 0; // Total saved moving distance of nodes
+//double Total_Distance_Saved = 0; // Total saved moving distance of nodes
 double Total_Node_Moving_Dist = 0; //Total moving distance of nodes
 char Result_File[256]; //File address for saving results
 
@@ -783,9 +785,73 @@ int is_on_arc(int v0, int v1, const Node &node)
 //    const Graph &g, const vector<int> *shortest_paths,\
 //    const vector<int> &vertexes_selected, const double *distances,\
 //    int tracking_id)
+double get_expect_not_move(const Node &node, int v1, double dist_v0_v1, \
+                           double dist_v1_m1, double prob_v0_v1, \
+                           double prob_v1_v2)
+/* Calculate its expectation if the node does NOT move */
+{
+    //int i = node_on_arc[v];
+    //double prob_v1_v2 = g.get_arcs_probs(v1, v);
+    //double dist_v1_m1 = get_dist_vertexes(g.get_vertex(v1), nodes[i]);
+    double dist_sav;
+    double double_fov = 2 * Node::get_fov();
+    if (dist_v0_v1 >= double_fov) {
+        if (is_on_vertex(v1, node) || dist_v1_m1 >= double_fov) {
+            dist_sav = double_fov;
+        } else {
+            dist_sav = dist_v1_m1;
+        }
+    } else {
+        if (is_on_vertex(v1, node)) {
+            dist_sav = dist_v0_v1;
+        } else if (dist_v1_m1 < double_fov) {
+            dist_sav = dist_v1_m1;
+        } else {
+            dist_sav = double_fov;
+        }
+    }
+    double exp;
+    if (is_on_vertex(v1, node)) {
+        exp = dist_sav * prob_v0_v1;
+    } else {
+        exp = dist_sav * prob_v1_v2;
+    }
+    //printf("get_expect_not_move: exp(%f) = dist_sav(%f) * prob\n",\
+    //    exp, dist_sav);//test
+    return exp;
+}
+
+double get_expect_move(double dist_v0_v1, double dist_v1_m1, \
+                       double prob_v0_v1, double &d_m0)
+/* Calculate its expectation if the node does move */
+{
+    double dist_sav;
+    double double_fov = 2 * Node::get_fov();
+    if (dist_v0_v1 >= double_fov) {
+        if (dist_v0_v1 - Node::get_fov() >= dist_v1_m1) {
+            dist_sav = double_fov - dist_v1_m1;
+            d_m0 = dist_v0_v1 - double_fov;
+        } else {
+            dist_sav = dist_v0_v1 + Node::get_fov() - 2 * dist_v1_m1;
+            d_m0 = dist_v1_m1 - Node::get_fov();
+        }
+    } else {
+        if (Node::get_fov() >= dist_v1_m1) {
+            dist_sav = dist_v0_v1 - dist_v1_m1;
+            d_m0 = 0;
+        } else {
+            dist_sav = dist_v0_v1 + Node::get_fov() - 2 * dist_v1_m1;
+            d_m0 = dist_v1_m1 - Node::get_fov();
+        }
+    }
+    double exp = dist_sav * prob_v0_v1;
+    //printf("get_expect_move: exp(%f) = dist_sav(%f) * prob_v0_v1(%f)\n",\
+    //    exp, dist_sav, prob_v0_v1);//test
+    return exp;
+}
 void get_all_expects(vector<Expect_Saving> &expects_set, const Node *nodes,\
-    const Graph &g, int target_from, int target_to,\
-    int tracking_id)
+                     const Graph &g, int target_from, int target_to,\
+                     int tracking_id)
 /* Calculate all Expectations */    
 {
     //for (vector<int>::const_iterator v_i = vertexes_selected.begin();
@@ -805,7 +871,13 @@ void get_all_expects(vector<Expect_Saving> &expects_set, const Node *nodes,\
     int v0 = target_from;
     int v1 = target_to;
     double dist_v0_v1 = g.get_arcs_length(v0, v1);
+    double prob_v0_v1 = 1.0;
 
+    //test 
+    //printf("******* get_all_expects *******\n");
+    //printf("tracking_id = %d at [%d-%d %f]\n", \
+    //    tracking_id, nodes[tracking_id].get_start(), \
+    //    nodes[tracking_id].get_end(), nodes[tracking_id].get_dist2start());
     /* Special situation: a node is on v0v1. If so it will just wait. */
     int is_met = 0;
     for (int i = 0; i < Mobile_Node_Num; ++i) {
@@ -819,6 +891,13 @@ void get_all_expects(vector<Expect_Saving> &expects_set, const Node *nodes,\
             (dist_v0_m1 < double_fov ? dist_v0_m1 : double_fov);
         Expect_Saving expect_meet(dist_sav, i, 0);
         expects_set.push_back(expect_meet);
+        //test
+        //printf("In Special Situation, i = %d at [%d - %d], dist_v0_m1 = %f, dist_sav = %f\n", \
+        //    i, nodes[i].get_start(), nodes[i].get_end(), dist_v0_m1, dist_sav);
+        //if (nodes[i].get_start() != nodes[i].get_end() && dist_sav == 0) {
+        //    printf("@898 zerozero\n");
+        //}
+
     }
     if (is_met) {
         return;
@@ -837,6 +916,7 @@ void get_all_expects(vector<Expect_Saving> &expects_set, const Node *nodes,\
         for (int i = 0; i < Mobile_Node_Num; ++i) {
              if (is_on_arc(v1, v, nodes[i]) && i != tracking_id) {
                  node_on_arc[v] = i;
+                 //printf("node[%d] is on arc (%d %d)\n", i, v1, v);//test
              }
         }
     }
@@ -849,28 +929,41 @@ void get_all_expects(vector<Expect_Saving> &expects_set, const Node *nodes,\
         int i = node_on_arc[v];
         double prob_v1_v2 = g.get_arcs_probs(v1, v);
         double dist_v1_m1 = get_dist_vertexes(g.get_vertex(v1), nodes[i]);
-        double dist_sav;
-        if (dist_v0_v1 >= double_fov) {
-            if (is_on_vertex(v1, nodes[i]) || dist_v1_m1 >= double_fov) {
-                dist_sav = double_fov;
-            } else {
-                dist_sav = dist_v1_m1;
-            }
-        } else {
-            if (is_on_vertex(v1, nodes[i])) {
-                dist_sav = dist_v0_v1;
-            } else if (dist_v1_m1 < double_fov) {
-                dist_sav = dist_v1_m1;
-            } else {
-                dist_sav = double_fov;
-            }
-        }
-        double exp;
-        if (is_on_vertex(v1, nodes[i])) {
-            exp = dist_sav * 1.0;
-        } else {
-            exp = dist_sav * prob_v1_v2;
-        }
+        //double dist_sav;
+        //if (dist_v0_v1 >= double_fov) {
+        //    if (is_on_vertex(v1, nodes[i]) || dist_v1_m1 >= double_fov) {
+        //        dist_sav = double_fov;
+        //    } else {
+        //        dist_sav = dist_v1_m1;
+        //    }
+        //} else {
+        //    if (is_on_vertex(v1, nodes[i])) {
+        //        dist_sav = dist_v0_v1;
+        //    } else if (dist_v1_m1 < double_fov) {
+        //        dist_sav = dist_v1_m1;
+        //    } else {
+        //        dist_sav = double_fov;
+        //    }
+        //}
+        //double exp;
+        //if (is_on_vertex(v1, nodes[i])) {
+        //    exp = dist_sav * 1.0;
+        //} else {
+        //    exp = dist_sav * prob_v1_v2;
+        //}
+        double exp = get_expect_not_move(nodes[i], v1, dist_v0_v1, \
+            dist_v1_m1, prob_v0_v1, prob_v1_v2);
+        //test
+        //if (exp < 0.000001) {
+        //    printf("@950 What happened?\n");
+        //    printf("exp = %f, node[%d] (%d -> %d /%f)\n",\
+        //        exp, i, nodes[i].get_start(), nodes[i].get_end(),\
+        //        nodes[i].get_dist2start());
+        //    printf("dist_v0_v1 = %f\n", dist_v0_v1);
+        //    printf("dist_v1_m1 = %f\n", dist_v1_m1);
+        //    printf("prob_v0_v1 = %f\n", prob_v0_v1);
+        //    printf("prob_v1_v2 = %f\n", prob_v1_v2);
+        //}
         Expect_Saving expect_wait(exp, i, 0);
         expects_not_move.push_back(expect_wait);
         expects_set.push_back(expect_wait);
@@ -883,36 +976,59 @@ void get_all_expects(vector<Expect_Saving> &expects_set, const Node *nodes,\
         int i = node_on_arc[v];
         double dist_v1_m1 = get_dist_vertexes(g.get_vertex(v1), nodes[i]);
         /* Advantages of movement */
-        double dist_sav;
         if (dist_v1_m1 > dist_v0_v1) {
             continue; // Cannot arrive in time
         }
         if (is_on_vertex(v1, nodes[i])) {
             continue; // Not need move
         }
-        if (dist_v0_v1 >= double_fov) {
-            if (dist_v0_v1 - Node::get_fov() >= dist_v1_m1) {
-                dist_sav = double_fov - dist_v1_m1;
-            } else {
-                dist_sav = dist_v0_v1 + Node::get_fov() - 2 * dist_v1_m1;
-            }
-        } else {
-            if (Node::get_fov() >= dist_v1_m1) {
-                dist_sav = dist_v0_v1 - dist_v1_m1;
-            } else {
-                dist_sav = dist_v0_v1 + Node::get_fov() - 2 * dist_v1_m1;
-            }
-        }
-        double exp = dist_sav;
+        double d_m0;
+        //double dist_sav;
+        //if (dist_v0_v1 >= double_fov) {
+        //    if (dist_v0_v1 - Node::get_fov() >= dist_v1_m1) {
+        //        dist_sav = double_fov - dist_v1_m1;
+        //        d_m0 = dist_v0_v1 - double_fov;
+        //    } else {
+        //        dist_sav = dist_v0_v1 + Node::get_fov() - 2 * dist_v1_m1;
+        //        d_m0 = dist_v1_m1 - Node::get_fov();
+        //    }
+        //} else {
+        //    if (Node::get_fov() >= dist_v1_m1) {
+        //        dist_sav = dist_v0_v1 - dist_v1_m1;
+        //        d_m0 = 0;
+        //    } else {
+        //        dist_sav = dist_v0_v1 + Node::get_fov() - 2 * dist_v1_m1;
+        //        d_m0 = dist_v1_m1 - Node::get_fov();
+        //    }
+        //}
+        //double exp = dist_sav;
+        double exp = get_expect_move(dist_v0_v1, dist_v1_m1,\
+                                     prob_v0_v1, d_m0);
+        //if (exp < 0.000001 && exp >= 0) {
+        //    printf("@999 What happened?\n");
+        //    printf("exp = %f, node[%d] (%d -> %d /%f)\n",\
+        //        exp, i, nodes[i].get_start(), nodes[i].get_end(),\
+        //        nodes[i].get_dist2start());
+        //    printf("dist_v0_v1 = %f\n", dist_v0_v1);
+        //    printf("dist_v1_m1 = %f\n", dist_v1_m1);
+        //    printf("prob_v0_v1 = %f\n", prob_v0_v1);
+        //    printf("d_m0 = %f\n", d_m0);
+        //}
         /* As well as advantages of future meet */
         for (vector<Expect_Saving>::iterator e_i = expects_not_move.begin();
              e_i != expects_not_move.end(); ++e_i) {
-            if (e_i->get_node() == v) {
+            if (e_i->get_node() == i) {
                 continue;
             }
             exp += e_i->get_value();
         }
-        Expect_Saving expect_move(exp, i, 1, v);
+        /* The expectation should also add the one wait on v0v1, i.e. m0 */
+        double dist_v1_m0 = g.get_arcs_length(v0, v1) - d_m0;
+        double dist_sav = \
+            (dist_v1_m0 >= double_fov ? double_fov : dist_v1_m0);
+        exp += (dist_sav * g.get_arcs_probs(v1, v0));
+        //Expect_Saving expect_move(exp, i, 1, v1);
+        Expect_Saving expect_move(exp, i, 1);
         expects_set.push_back(expect_move);
     }
 }
@@ -1048,110 +1164,215 @@ void mobile_node_schedule(const vector<Expect_Saving> &expects_set, \
     double expect_max = 0;
     int node_index;
     int will_move = 0;
-    int dest;
+    //int dest;
     //double dist_saved;
-    double dist_v1_m1;
+    int v0 = target_from;
+    int v1 = target_to;
+    double dist_v0_v1 = g.get_arcs_length(v0, v1);
+    //double dist_v1_m1;
 
+    //printf("======= mobile_node_schedule =======\n"); //test
+    //printf("tracking_index = %d\n", tracking_index); //test
+    if (expects_set.size() == 0) {
+        Total_Node_Moving_Dist += dist_v0_v1;
+        nodes[tracking_index].set_end(v1);
+        nodes[tracking_index].set_start(v1);
+        nodes[tracking_index].set_dist2start(0);
+        nodes[tracking_index].set_x_(g.get_vertex(v1).get_x_());
+        nodes[tracking_index].set_y_(g.get_vertex(v1).get_y_());
+        //printf("size == 0, no node\n");
+        return;
+    }
     /* Choose the maximum expectation */
     for (vector<Expect_Saving>::const_iterator e_i = expects_set.begin();
          e_i != expects_set.end(); ++e_i) {
-        if (e_i->get_value() > expect_max) {
+        if (e_i->get_value() >= expect_max) {
             expect_max = e_i->get_value();
             node_index = e_i->get_node();
             will_move = e_i->get_if_move();
-            dest = e_i->get_to();
-            dist_saved = e_i->get_dist_saved();
+            //dest = e_i->get_to();
+            //dist_saved = e_i->get_dist_saved();
         }
+        //test
+        //printf("value = %f, node = %d, if_move = %d\n",\
+        //    e_i->get_value(), e_i->get_node(), e_i->get_if_move());
     }
+    //printf("expect_max = %f, node_index = %d, will_move = %d\n", \
+    //    expect_max, node_index, will_move); //test
+    /* If the node is to move */
     if (will_move) {
-        dist_v1_m1 = \
-            get_dist_vertexes(g.get_vertex(dest), nodes[node_index]);
+        /* Calculate the moving distance */
+        double dist_v1_m1 = \
+            get_dist_vertexes(g.get_vertex(v1), nodes[node_index]);
         //printf("@942 dist_v1_m1 = %f\n", dist_v1_m1); //test
-        Total_Node_Moving_Dist += dist_v1_m1;
-        nodes[node_index].set_start(dest);
-        nodes[node_index].set_end(dest);
+        double double_fov = 2 * Node::get_fov();
+        double d_m0;
+        if (dist_v0_v1 >= double_fov) {
+            if (dist_v0_v1 - Node::get_fov() >= dist_v1_m1) {
+                d_m0 = dist_v0_v1 - double_fov;
+            } else {
+                d_m0 = dist_v1_m1 - Node::get_fov();
+            }
+        } else {
+            if (Node::get_fov() >= dist_v1_m1) {
+                d_m0 = 0;
+            } else {
+                d_m0 = dist_v1_m1 - Node::get_fov();
+            }
+        }
+        Total_Node_Moving_Dist += (dist_v1_m1 + d_m0);
+        /* Update nodes' coordinate */
+        nodes[node_index].set_start(v1);
+        nodes[node_index].set_end(v1);
         nodes[node_index].set_dist2start(0);
-        nodes[node_index].set_x_(g.get_vertex(dest).get_x_());
-        nodes[node_index].set_y_(g.get_vertex(dest).get_y_());
-    }
+        nodes[node_index].set_x_(g.get_vertex(v1).get_x_());
+        nodes[node_index].set_y_(g.get_vertex(v1).get_y_());
+        nodes[tracking_index].set_start(v0);
+        d_m0 == 0 ? \
+            nodes[tracking_index].set_end(v0) : \
+            nodes[tracking_index].set_end(v1);
+        //if (dist_v0_v1 < double_fov && Node::get_fov() >= dist_v1_m1) {
+        //    nodes[tracking_index].set_end(v0);
+        //} else {
+        //    nodes[tracking_index].set_end(v1);
+        //}
+        nodes[tracking_index].set_dist2start(d_m0);
+        //test
+        int ne = nodes[tracking_index].get_end();
+        int ns = nodes[tracking_index].get_start();
+        //if (ns != ne && d_m0 == 0) {
+        //    printf("@1209 nodes[%d] (%d -> %d) %f\n",\
+        //        tracking_index, ns, ne, nodes[tracking_index].get_dist2start());
+        //    //zerozero
+        //}
 
-    /* Schedule the tracking node */
-    /* If move */
-    if (will_move && dest == target_to) {
-        Total_Distance_Saved += dist_saved; //Update total distance
-        double dist_v0_v1 = g.get_arcs_length(target_from, target_to);
-        //double dist_v1_m1 = \
-        //    get_dist_vertexes(g.get_vertex(dest), nodes[node_index]);
-        double d0 = dist_v0_v1 - dist_saved - dist_v1_m1; //Dm0 = |v0v1| - D - Dm1
-        //Total_Node_Moving_Dist += (d0 + dist_v1_m1);
-        Total_Node_Moving_Dist += d0;
-        //printf("@959 dist_v1_m1 = %f, Total_Node_Moving_Dist = %f\n",\
-        //    dist_v1_m1, Total_Node_Moving_Dist); //test
-        /* Update tracking node */
-        nodes[tracking_index].set_end(dest);
-        nodes[tracking_index].set_dist2start(d0);
         double x, y;
-        set_coordinate_in_arc(x, y, target_from, target_to, d0, g);
+        set_coordinate_in_arc(x, y, v0, v1, d_m0, g);
         nodes[tracking_index].set_x_(x);
         nodes[tracking_index].set_y_(y);
         tracking_index = node_index;
-
-        return;
-    } else if (will_move) {
-        Total_Node_Moving_Dist += g.get_arcs_length(target_from, target_to);
-
+        //printf("@1245 Move: tracking_index = %d\n", tracking_index); //test
         return;
     }
-    /* If no move */
-    int is_met = 0; //If the target met with other nodes
-    for (int i = 0; i < Mobile_Node_Num; ++i) {
-        if (i == tracking_index) {
-            continue;
-        }
-        if (!is_on_arc(target_from, target_to, nodes[i])) {
-            continue;
-        }
-        is_met = 1;
+    /* If the node is NOT to move */
+    if (is_on_arc(v0, v1, nodes[node_index])) {
         double dist_v0_m1 = \
-            get_dist_vertexes(g.get_vertex(target_from), nodes[i]);
+            get_dist_vertexes(g.get_vertex(v0), nodes[node_index]);
         double double_fov = 2 * Node::get_fov();
-        //double d0 = \
-        //    (dist_v0_m1 > double_fov ? dist_v0_m1 - double_fov : 0);
-        double d0;
-        if (dist_v0_m1 > double_fov) {
-            d0 = dist_v0_m1 - double_fov;
-            Total_Distance_Saved += double_fov;
-        } else {
-            d0 = 0;
-            Total_Distance_Saved += dist_v0_m1;
-        }
-        if (is_on_vertex(target_to, nodes[i])) {
-            Total_Node_Moving_Dist += d0;
-        } else {
-            Total_Node_Moving_Dist += \
-                d0 + get_dist_vertexes(nodes[i], g.get_vertex(target_to));
-        }
-        //printf("@992 d0 = %f, Total_Node_Moving_Dist = %f\n",\
-        //    d0, Total_Node_Moving_Dist); //test
-        if (d0) {
-            nodes[tracking_index].set_end(target_to);
-            nodes[tracking_index].set_start(target_from);
-            nodes[tracking_index].set_dist2start(d0);
-            double x, y;
-            set_coordinate_in_arc(x, y, target_from, target_to, d0, g);
-            nodes[tracking_index].set_x_(x);
-            nodes[tracking_index].set_y_(y);
-        }
-        tracking_index = i;
-        break;
-    }
-    if (!is_met) {
-        Total_Node_Moving_Dist += g.get_arcs_length(target_from, target_to);
-        nodes[tracking_index].set_end(target_to);
-        nodes[tracking_index].set_start(target_to);
+        double d_m0 = \
+            (dist_v0_m1 >= double_fov ? dist_v0_m1 - double_fov : 0);
+        Total_Node_Moving_Dist += d_m0;
+        nodes[tracking_index].set_start(v0);
+        //d_m0 ? \
+        //    nodes[tracking_index].set_end(v1) : \
+        //    nodes[tracking_index].set_end(v0);
+        //dist_v0_m1 >= double_fov ? \
+        //    nodes[tracking_index].set_end(v1) : \
+        //    nodes[tracking_index].set_end(v0);
+        d_m0 == 0 ? \
+            nodes[tracking_index].set_end(v0) : \
+            nodes[tracking_index].set_end(v1);
+        nodes[tracking_index].set_dist2start(d_m0);
+        //test
+        //int ne = nodes[tracking_index].get_end();
+        //int ns = nodes[tracking_index].get_start();
+        //if (ns != ne && d_m0 == 0) {
+        //    printf("@1241 nodes[%d] (%d -> %d) %f\n",\
+        //        tracking_index, ns, ne, nodes[tracking_index].get_dist2start());
+        //    //zerozero
+        //}
+
+        double x, y;
+        set_coordinate_in_arc(x, y, v0, v1, d_m0, g);
+        nodes[tracking_index].set_x_(x);
+        nodes[tracking_index].set_y_(y);
+        tracking_index = node_index;
+    } else {
+        Total_Node_Moving_Dist += dist_v0_v1;
+        nodes[tracking_index].set_end(v1);
+        nodes[tracking_index].set_start(v1);
         nodes[tracking_index].set_dist2start(0);
-        nodes[tracking_index].set_x_(g.get_vertex(target_to).get_x_());
-        nodes[tracking_index].set_y_(g.get_vertex(target_to).get_y_());
+        nodes[tracking_index].set_x_(g.get_vertex(v1).get_x_());
+        nodes[tracking_index].set_y_(g.get_vertex(v1).get_y_());
     }
+
+    /* Schedule the tracking node */
+    ///* If move */
+    //if (will_move && dest == target_to) {
+    //    Total_Distance_Saved += dist_saved; //Update total distance
+    //    double dist_v0_v1 = g.get_arcs_length(target_from, target_to);
+    //    //double dist_v1_m1 = \
+    //    //    get_dist_vertexes(g.get_vertex(dest), nodes[node_index]);
+    //    double d0 = dist_v0_v1 - dist_saved - dist_v1_m1; //Dm0 = |v0v1| - D - Dm1
+    //    //Total_Node_Moving_Dist += (d0 + dist_v1_m1);
+    //    Total_Node_Moving_Dist += d0;
+    //    //printf("@959 dist_v1_m1 = %f, Total_Node_Moving_Dist = %f\n",\
+    //    //    dist_v1_m1, Total_Node_Moving_Dist); //test
+    //    /* Update tracking node */
+    //    nodes[tracking_index].set_end(dest);
+    //    nodes[tracking_index].set_dist2start(d0);
+    //    double x, y;
+    //    set_coordinate_in_arc(x, y, target_from, target_to, d0, g);
+    //    nodes[tracking_index].set_x_(x);
+    //    nodes[tracking_index].set_y_(y);
+    //    tracking_index = node_index;
+
+    //    return;
+    //} else if (will_move) {
+    //    Total_Node_Moving_Dist += g.get_arcs_length(target_from, target_to);
+
+    //    return;
+    //}
+    /* If no move */
+    //int is_met = 0; //If the target met with other nodes
+    //for (int i = 0; i < Mobile_Node_Num; ++i) {
+    //    if (i == tracking_index) {
+    //        continue;
+    //    }
+    //    if (!is_on_arc(target_from, target_to, nodes[i])) {
+    //        continue;
+    //    }
+    //    is_met = 1;
+    //    double dist_v0_m1 = \
+    //        get_dist_vertexes(g.get_vertex(target_from), nodes[i]);
+    //    double double_fov = 2 * Node::get_fov();
+    //    //double d0 = \
+    //    //    (dist_v0_m1 > double_fov ? dist_v0_m1 - double_fov : 0);
+    //    double d0;
+    //    if (dist_v0_m1 > double_fov) {
+    //        d0 = dist_v0_m1 - double_fov;
+    //        Total_Distance_Saved += double_fov;
+    //    } else {
+    //        d0 = 0;
+    //        Total_Distance_Saved += dist_v0_m1;
+    //    }
+    //    if (is_on_vertex(target_to, nodes[i])) {
+    //        Total_Node_Moving_Dist += d0;
+    //    } else {
+    //        Total_Node_Moving_Dist += \
+    //            d0 + get_dist_vertexes(nodes[i], g.get_vertex(target_to));
+    //    }
+    //    //printf("@992 d0 = %f, Total_Node_Moving_Dist = %f\n",\
+    //    //    d0, Total_Node_Moving_Dist); //test
+    //    if (d0) {
+    //        nodes[tracking_index].set_end(target_to);
+    //        nodes[tracking_index].set_start(target_from);
+    //        nodes[tracking_index].set_dist2start(d0);
+    //        double x, y;
+    //        set_coordinate_in_arc(x, y, target_from, target_to, d0, g);
+    //        nodes[tracking_index].set_x_(x);
+    //        nodes[tracking_index].set_y_(y);
+    //    }
+    //    tracking_index = i;
+    //    break;
+    //}
+    //if (!is_met) {
+    //    Total_Node_Moving_Dist += g.get_arcs_length(target_from, target_to);
+    //    nodes[tracking_index].set_end(target_to);
+    //    nodes[tracking_index].set_start(target_to);
+    //    nodes[tracking_index].set_dist2start(0);
+    //    nodes[tracking_index].set_x_(g.get_vertex(target_to).get_x_());
+    //    nodes[tracking_index].set_y_(g.get_vertex(target_to).get_y_());
+    //}
 }
 #endif
