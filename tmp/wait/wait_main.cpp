@@ -20,17 +20,28 @@ void do_expmt()
     while (total_target_dist < Target_Moving_Dist_Threshold) {
         int target_to = get_target_next_step(target, g);
         //printf("(%d -> %d)\n", target_from, target_to); //test
-        vector<int> shortest_paths[MAX_VERTEX_NUM];
-        vector<int> vertexes_selected;
+        //vector<int> shortest_paths[MAX_VERTEX_NUM];
+        //vector<int> vertexes_selected;
         //double shortest_dists[MAX_VERTEX_NUM];
         //shortest_path_dijkstra(g, target_from, target_to,\
         //    shortest_paths, vertexes_selected,\
         //    shortest_dists, Search_Threshold);
+        //int is_enclosed = 0;
+        //if (is_target_enclosed(nodes, \
+        //    shortest_paths, vertexes_selected)) {
+        //    is_enclosed = 1;                
+        //}
         vector<Expect_Saving> expects_set;
+        //if (!is_enclosed) {
         //get_all_expects(expects_set, nodes, g, shortest_paths,\
         //    vertexes_selected, shortest_dists, tracking_id);
+        get_all_expects(expects_set, nodes, g, target_from, target_to,\
+            tracking_id);
+        //}
+        //printf("get_all_expects passed.\n"); //test
         mobile_node_schedule(expects_set, nodes, target_from, target_to,\
             g, tracking_id);
+        //printf("mobile_node_schedule passed.\n"); //test
         target.set_start(target_to);
         target.set_end(target_to);
         target.set_x_(g.get_vertex(target_to).get_x_());
@@ -49,9 +60,9 @@ void do_expmt()
     if (result_file) {
         fprintf(result_file, "%d %f\n", \
             Mobile_Node_Num, Total_Node_Moving_Dist/total_target_dist);
-    }
-    if (result_file) {
         fclose(result_file);
+    } else {
+        printf("Error: cannot create file \"%s\"\n", Result_File);
     }
 }
 
@@ -59,12 +70,12 @@ void init_parameters(int argc, char *argv[])
 /* Set parameters */
 {
     switch (argc) {
-    case 5:
-        Target_Moving_Dist_Threshold = atoi(argv[4]);
     case 4:
-        sprintf(Result_File, "%s", argv[3]);
+        Target_Moving_Dist_Threshold = atoi(argv[3]);
     case 3:
-        Search_Threshold = atoi(argv[2]);
+        sprintf(Result_File, "%s", argv[2]);
+    //case 3:
+    //    Search_Threshold = atoi(argv[2]);
     case 2:
         Mobile_Node_Num = atoi(argv[1]);
     default:
@@ -77,5 +88,6 @@ int main(int argc, char *argv[])
 {
     //freopen("output.txt", "w", stdout);
     init_parameters(argc, argv);
+
     return 0;
 }

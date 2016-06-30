@@ -24,6 +24,7 @@ set key Left
 # set key left bottom at 2, 2
 #plot "m_num-m_vs_tmd" u 1:($2/1000.0) w lp lt 1 lw 2 pt 5 ps 2 title "Expects", "m_num-f_vs_tmd" u 1:($2/1000.0) w lp lt 2 lw 2 pt 2 ps 2 title "FT", "m_num-exp_vs_tmd.txt" u 1:($2*100.0) w lp lt 3 lw 2 pt 3 ps 2 title "MFT", "m_num-c_vs_tmd" u 1:($2/1000.0) w lp lt 4 lw 2 pt 4 ps 2 title "CT"
 plot "m_num-exp_vs_tmd.txt" u 1:($2*100.0) w lp lt 1 lw 2 pt 5 ps 2 title "Expects", \
-     "m_num-wait_vs_tmd.txt" u 1:($2*100.0) w lp lt 2 lw 2 pt 2 ps 2 title "Wait"
+     "m_num-wait_vs_tmd.txt" u 1:($2*100.0) w lp lt 2 lw 2 pt 2 ps 2 title "Wait", \
+     "m_num-push_vs_tmd.txt" u 1:($2*100.0) w lp lt 3 lw 2 pt 3 ps 2 title "Push"
 set output
 #!pdftops -eps 20_hole_vs_vt.pdf

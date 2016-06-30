@@ -17,12 +17,12 @@ else:
     count = int(argvs[1])
 for i in range(count):
     for m_num in range(1, 21):
-        subprocess.call(['expect_one_arc.exe', str(m_num), result_file, '2000'], shell = True)
+        subprocess.call(['tmp_push.exe', str(m_num), result_file, '2000'], shell=True)
 
 # Process the results
 rf = open(result_file, 'r')
 #emt_file = open('d_fov-grid_vs_emt', 'w')
-tmd_file = open('m_num-exp_vs_tmd.txt', 'w')
+tmd_file = open('m_num-push_vs_tmd.txt', 'w')
 #emt = dict()
 tmd = dict()
 for line in rf:
